@@ -9,8 +9,8 @@ from dataclasses import dataclass
 from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
-from classical_crack import brute_force_crack
-from quantum_crack import grover_crack
+from src.classical_crack import brute_force_crack
+from src.quantum_crack import grover_crack
 
 # Configure logging
 logging.basicConfig(
@@ -35,7 +35,7 @@ class CrackingResult:
 
 class PasswordCracker:
     """Enterprise password cracking comparison tool"""
-    DEFAULT_LENGTHS = [2, 3, 4, 5, 6, 7]
+    DEFAULT_LENGTHS = [2, 3, 4, 5]
     OUTPUT_DIR = Path('results')
     PLOT_STYLE = 'default'
     
