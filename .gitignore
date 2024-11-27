@@ -1,0 +1,23 @@
+# Byte-compiled / cached files
+__pycache__/
+*.py[cod]
+
+# Log files
+*.log
+
+# macOS system files
+.DS_Store
+
+# Environment files
+.env
+.venv
+env/
+venv/
+
+# Results and artifacts
+/results/*.png
+
+# Dependency and build files
+*.egg-info/
+build/
+dist/

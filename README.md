@@ -25,7 +25,7 @@ This project provides a comparative analysis of password cracking techniques usi
 
 ## File Structure
 
-- `password_cracker.py`: Main script to simulate password cracking and compare methods.
+- `main.py`: Main script to simulate password cracking and compare methods.
 - `classical_crack.py`: Implements the classical brute-force cracking approach.
 - `quantum_crack.py`: Simulates quantum cracking using Grover's algorithm principles.
 
@@ -35,14 +35,20 @@ This project provides a comparative analysis of password cracking techniques usi
 
 To run the project, install the following dependencies:
 
-- Python 3.8+
-- `numpy`
-- `matplotlib`
-- `qiskit`
-- `qiskit-aer`
-
-Install dependencies using pip:
+- cd into project directory
 
 ```bash
-pip install numpy matplotlib qiskit qiskit-aer
+    python3.10 -m venv venv
+```
+
+```bash
+    source venv/bin/activate
+```
+
+```bash
+    pip install -r requirements.txt
+```
+
+```bash
+    python main.py
 ```
