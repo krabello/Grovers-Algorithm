@@ -2,29 +2,23 @@ import numpy as np
 from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister, transpile
 from qiskit_aer import Aer
 import string
+from shared_constants import CHARSET
 
 
 class GroverCrack:
     def __init__(self):
-        # Define charset with a-z, A-Z, 0-9, and special characters
-        self.charset = (
-            string.ascii_lowercase +     # a-z
-            string.ascii_uppercase +     # A-Z
-            string.digits +              # 0-9
-            string.punctuation          # Special characters
-        )
         # Use 7 bits to represent ~94 characters (2^7 = 128)
         self.bits_per_char = 7
-        print(f"Initialized GroverCrack with {len(self.charset)} characters.")
-        print(f"Charset: {self.charset}")
+        print(f"Initialized GroverCrack with {len(CHARSET)} characters.")
+        print(f"Charset: {CHARSET}")
 
     def _validate_password(self, password: str) -> bool:
         """Validate that all characters in password are in charset."""
-        invalid_chars = set(password) - set(self.charset)
+        invalid_chars = set(password) - set(CHARSET)
         if invalid_chars:
             print(
                 f"Error: Invalid characters in password: {sorted(invalid_chars)}")
-            print(f"Supported characters: {self.charset}")
+            print(f"Supported characters: {CHARSET}")
             return False
         return True
 
@@ -38,9 +32,9 @@ class GroverCrack:
 
     def _encode_char(self, char: str) -> str:
         """Encode character to binary with pre-compensation."""
-        if char not in self.charset:
+        if char not in CHARSET:
             raise ValueError(f"Character '{char}' not in supported charset")
-        index = self.charset.index(char)
+        index = CHARSET.index(char)
         binary = format(index, f'0{self.bits_per_char}b')
         compensated = self._precompensate_bits(binary)
         return compensated
@@ -88,7 +82,7 @@ class GroverCrack:
         """Decode measured bits back to character."""
         try:
             index = int(bits, 2)
-            return self.charset[index] if index < len(self.charset) else '?'
+            return CHARSET[index] if index < len(CHARSET) else '?'
         except ValueError:
             return '?'
 

@@ -24,7 +24,7 @@ class CrackingResult:
 
 
 class PasswordCracker:
-    DEFAULT_LENGTHS = [2, 3, 4, 5]
+    DEFAULT_LENGTHS = [2, 3, 5, 8]
     OUTPUT_DIR = Path('results')
 
     def __init__(self):

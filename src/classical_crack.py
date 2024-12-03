@@ -7,6 +7,7 @@ computationally infeasible for longer passwords due to its exponential time comp
 from src.timing_utils import TimingUtils
 import string
 import itertools
+from shared_constants import CHARSET
 
 
 @TimingUtils.timing_decorator
@@ -26,11 +27,10 @@ def brute_force_crack(target_password):
     if not target_password:
         raise ValueError("Target password cannot be None or empty.")
 
-    charset = string.ascii_letters + string.digits + string.punctuation
     password_length = len(target_password)
     attempts = 0
 
-    for guess in itertools.product(charset, repeat=password_length):
+    for guess in itertools.product(CHARSET, repeat=password_length):
         attempts += 1
         current_guess = ''.join(guess)
         if current_guess == target_password:
