@@ -1,10 +1,10 @@
 """
-The brute_force_crack function demonstrates a brute-force approach to password cracking.
-It systematically generates and tests every possible combination of characters in the specified
-character set until it finds a match. While effective for short passwords, this method becomes
+brute_force_crack: This function will provide a simple brute force for password cracking.
+It generates and tests every possible combination of characters in the specified
+character set until it finds a match. While effective for short passwords, this approach becomes
 computationally infeasible for longer passwords due to its exponential time complexity.
 """
-from timing_utils import TimingUtils
+from src.timing_utils import TimingUtils
 import string
 import itertools
 
@@ -12,13 +12,13 @@ import itertools
 @TimingUtils.timing_decorator
 def brute_force_crack(target_password):
     """
-    Attempts to brute-force crack the given target password.
+    Attempts to brute-force crack given target password.
 
     Args:
-        target_password (str): The password to be cracked.
+        target_password (str): Password to be cracked.
 
     Returns:
-        tuple: The cracked password and the number of attempts.
+        tuple: Cracked password and the number of attempts.
 
     Raises:
         ValueError: If the target password is None or empty.
@@ -37,12 +37,3 @@ def brute_force_crack(target_password):
             return current_guess, attempts
 
     return None, attempts
-
-# test code
-# if __name__ == "__main__":
-#     # Example usage
-#     password = "abcdef"
-#     result, elapsed_time = brute_force_crack(password)
-#     print(
-#         f"Cracked Password: {result[0]}, Attempts: {result[1]}, Time: {elapsed_time:.2f} ms"
-#     )

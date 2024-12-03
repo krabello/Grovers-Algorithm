@@ -1,165 +1,154 @@
-"""
-Simulates a quantum password cracker using Grover's algorithm principles.
-The circuit creates a quantum oracle for matching the target password
-and uses Qiskit's Aer simulator to estimate the quantum search process.
-"""
-from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister
-from qiskit_aer import Aer
-from qiskit.visualization import plot_histogram
-from timing_utils import TimingUtils
 import numpy as np
+from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister, transpile
+from qiskit_aer import Aer
 import string
 
 
-from qiskit.circuit import Gate
+class GroverCrack:
+    def __init__(self):
+        # Define charset with a-z, A-Z, 0-9, and special characters
+        self.charset = (
+            string.ascii_lowercase +     # a-z
+            string.ascii_uppercase +     # A-Z
+            string.digits +              # 0-9
+            string.punctuation          # Special characters
+        )
+        # Use 7 bits to represent ~94 characters (2^7 = 128)
+        self.bits_per_char = 7
+        print(f"Initialized GroverCrack with {len(self.charset)} characters.")
+        print(f"Charset: {self.charset}")
+
+    def _validate_password(self, password: str) -> bool:
+        """Validate that all characters in password are in charset."""
+        invalid_chars = set(password) - set(self.charset)
+        if invalid_chars:
+            print(
+                f"Error: Invalid characters in password: {sorted(invalid_chars)}")
+            print(f"Supported characters: {self.charset}")
+            return False
+        return True
+
+    def _precompensate_bits(self, binary: str) -> str:
+        """Pre-compensate binary encoding for quantum circuit transformations."""
+        bits = list(binary)
+        for i, j in [(0, 6), (1, 5), (2, 4)]:  # Swap bits for 7-bit encoding
+            if bits[i] != bits[j]:
+                bits[i], bits[j] = bits[j], bits[i]
+        return ''.join(bits)
+
+    def _encode_char(self, char: str) -> str:
+        """Encode character to binary with pre-compensation."""
+        if char not in self.charset:
+            raise ValueError(f"Character '{char}' not in supported charset")
+        index = self.charset.index(char)
+        binary = format(index, f'0{self.bits_per_char}b')
+        compensated = self._precompensate_bits(binary)
+        return compensated
+
+    def _create_circuit(self, target_char: str) -> QuantumCircuit:
+        """Create quantum circuit for single character."""
+        qreg = QuantumRegister(self.bits_per_char, 'q')
+        creg = ClassicalRegister(self.bits_per_char, 'c')
+        circuit = QuantumCircuit(qreg, creg)
+
+        binary = self._encode_char(target_char)
+
+        # Create superposition
+        circuit.h(qreg)
+
+        # Apply oracle
+        for i, bit in enumerate(binary):
+            if bit == '0':
+                circuit.x(qreg[i])
+
+        # Phase kickback
+        circuit.h(qreg[-1])
+        circuit.mcx(list(range(self.bits_per_char - 1)), qreg[-1])
+        circuit.h(qreg[-1])
+
+        # Uncompute oracle
+        for i, bit in enumerate(binary):
+            if bit == '0':
+                circuit.x(qreg[i])
+
+        # Apply diffusion
+        circuit.h(qreg)
+        circuit.x(qreg)
+        circuit.h(qreg[-1])
+        circuit.mcx(list(range(self.bits_per_char - 1)), qreg[-1])
+        circuit.h(qreg[-1])
+        circuit.x(qreg)
+        circuit.h(qreg)
+
+        # Measure
+        circuit.measure(qreg, creg)
+        return circuit
+
+    def _decode_measurement(self, bits: str) -> str:
+        """Decode measured bits back to character."""
+        try:
+            index = int(bits, 2)
+            return self.charset[index] if index < len(self.charset) else '?'
+        except ValueError:
+            return '?'
+
+    def crack_password(self, target_password: str) -> str:
+        """Crack the target password using quantum simulation."""
+        if not target_password.strip():
+            print(
+                f"Invalid password input: '{target_password}' (Reason: Empty or space-only)")
+            return "Invalid password"
+
+        if not self._validate_password(target_password):
+            return "Invalid password"
+
+        print(f"\nAttempting to crack password: {target_password}")
+        result = ""
+
+        for pos, target_char in enumerate(target_password):
+            print(f"\nPosition {pos}: {target_char}")
+
+            # Create and simulate circuit
+            circuit = self._create_circuit(target_char)
+            backend = Aer.get_backend('qasm_simulator')
+            circuit = transpile(circuit, backend=backend, optimization_level=3)
+            counts = backend.run(circuit, shots=10000).result().get_counts()
+
+            # Analyze results
+            sorted_counts = sorted(
+                counts.items(), key=lambda x: x[1], reverse=True)
+            best_bits = sorted_counts[0][0]
+            best_char = self._decode_measurement(best_bits)
+            result += best_char
+
+            if best_char != target_char:
+                print(f"Warning: Got {best_char}, expected {target_char}")
+
+        print(f"\nFinal cracked password: {result}")
+        return result
 
 
-def create_oracle(target_binary, qubits_per_char):
-    """
-    Creates a quantum oracle for marking the target binary state.
+# def main():
+#     """Main function to test the GroverCrack class."""
+#     cracker = GroverCrack()
 
-    Args:
-        target_binary (str): Binary representation of the target password.
-        qubits_per_char (int): Number of qubits per character.
+#     passwords = [
+#         "abc123",             # Alphanumeric
+#         "Password!@#",        # Mixed with special chars
+#         "!@#$%^",             # All special chars
+#         "aB1#$x",             # Mixed types
+#         "123!@#456",          # Numbers and special chars
+#         "Hello,World!",       # With punctuation
+#     ]
 
-    Returns:
-        Gate: The oracle gate.
-    """
-    n_qubits = len(target_binary)
-    quantum_register = QuantumRegister(n_qubits, 'q')
-    oracle_circuit = QuantumCircuit(quantum_register, name="oracle")
-
-    # Apply X gates to flip the target bits
-    for i, bit in enumerate(target_binary):
-        if bit == '0':
-            oracle_circuit.x(quantum_register[i])
-
-    # Add a multi-controlled Z gate to mark the state
-    # Put the last qubit into the |+> state
-    oracle_circuit.h(quantum_register[-1])
-    oracle_circuit.mcx(list(range(n_qubits - 1)),
-                       quantum_register[-1])  # Multi-controlled X
-    # Return the last qubit to the |0> state
-    oracle_circuit.h(quantum_register[-1])
-
-    # Revert the X gates applied earlier
-    for i, bit in enumerate(target_binary):
-        if bit == '0':
-            oracle_circuit.x(quantum_register[i])
-
-    # Convert the circuit to a gate
-    oracle_gate = oracle_circuit.to_gate()
-    oracle_gate.name = "Oracle"  # Name the gate for visualization
-
-    return oracle_gate
+#     for password in passwords:
+#         print("\n" + "=" * 50)
+#         print(f"Testing password: {password}")
+#         result = cracker.crack_password(password)
+#         if result != "Invalid password":
+#             print(f"Result: {result}")
+#             print(f"Match: {result == password}")
 
 
-def apply_grover_iteration(circuit, quantum_register, oracle):
-    """Applies a single iteration of Grover's algorithm."""
-    circuit.append(oracle, quantum_register)  # Apply oracle
-    circuit.h(quantum_register)
-    circuit.x(quantum_register)
-    circuit.h(quantum_register)
-
-
-@TimingUtils.timing_decorator
-def grover_crack(target_password, charset=string.ascii_lowercase[:16]):
-    """
-    Simulates Grover's algorithm to crack a password.
-
-    Args:
-        target_password (str): The password to be cracked.
-        charset (str): The character set to use (default: lowercase letters).
-
-    Returns:
-        tuple: The cracked password and the theoretical number of Grover iterations.
-    """
-    if not all(c in charset for c in target_password):
-        raise ValueError(
-            "All characters in the target password must be in the charset.")
-
-    # Calculate the number of qubits required
-    qubits_per_char = len(bin(len(charset) - 1)) - 2
-    n_qubits = len(target_password) * qubits_per_char
-    quantum_register = QuantumRegister(n_qubits, 'q')
-    classical_register = ClassicalRegister(n_qubits, 'c')
-    circuit = QuantumCircuit(quantum_register, classical_register)
-
-    # Apply Hadamard gates to create superposition
-    circuit.h(quantum_register)
-
-    # Convert target password to binary
-    target_binary = ''.join([
-        format(charset.index(c), f'0{qubits_per_char}b') for c in target_password
-    ])
-    print(f"Target binary: {target_binary}")
-
-    # Create the oracle circuit
-    oracle_circuit = create_oracle(target_binary, qubits_per_char)
-
-    # Add Grover iterations
-    iterations = int(np.pi / 4 * np.sqrt(len(charset) ** len(target_password)))
-    for _ in range(iterations):
-        apply_grover_iteration(circuit, quantum_register, oracle_circuit)
-
-    # Add measurement gates
-    circuit.measure_all()
-
-    # Simulate the circuit
-    backend = Aer.get_backend('aer_simulator')
-    job = backend.run(circuit, shots=10_000)  # Increase shots for accuracy
-    result = job.result()
-    counts = result.get_counts()
-
-    # Visualize measurement results
-    plot_histogram(counts).show()
-
-    # Decode the most frequent measurement result
-    try:
-        measured_bits = max(counts.items(), key=lambda x: x[1])[0]
-        print(f"Measured bits: {measured_bits}")
-        print(f"Length of measured bits: {len(measured_bits)}")
-
-        # Adjust measured_bits length
-        expected_length = len(target_password) * qubits_per_char
-        measured_bits = measured_bits[:expected_length].ljust(
-            expected_length, '0')
-        print(f"Truncated measured bits: {measured_bits}")
-        print(f"Adjusted length: {len(measured_bits)}")
-
-        # Decode measured bits into characters
-        measured_chars = ''
-        for i in range(0, expected_length, qubits_per_char):
-            binary_chunk = measured_bits[i:i + qubits_per_char]
-            decimal_value = int(binary_chunk, 2)
-            print(f"Chunk: {binary_chunk}, Decimal: {decimal_value}")
-
-            if decimal_value < len(charset):
-                measured_chars += charset[decimal_value]
-            else:
-                measured_chars += '?'  # Placeholder for invalid indices
-
-    except (ValueError, IndexError) as e:
-        print(f"Error decoding measured bits: {e}")
-        measured_chars = "Error"
-
-    # Calculate theoretical Grover iterations
-    N = len(charset) ** len(target_password)
-    iterations = int(np.pi / 4 * np.sqrt(N))
-
-    return measured_chars, iterations
-
-
-def verify_result(original, cracked):
-    """
-    Verifies if the cracked password matches the original password.
-    """
-    return original == cracked
-
-
-if __name__ == "__main__":
-    password = "abc"
-    result, elapsed_time = grover_crack(
-        password, charset=string.ascii_lowercase)
-    print(
-        f"Cracked Password: {result}, Theoretical Iterations: {elapsed_time:.2f} ms")
+# if __name__ == "__main__":
+#     main()
