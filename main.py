@@ -1,6 +1,5 @@
 import logging
 import random
-import string
 from pathlib import Path
 from typing import List
 import matplotlib.pyplot as plt
@@ -8,9 +7,12 @@ import numpy as np
 from src.classical_crack import brute_force_crack
 from src.quantum_crack import GroverCrack
 from src.timing_utils import TimingUtils
+from shared_constants import CHARSET
 from dataclasses import dataclass
 import csv
 import time
+
+ENABLE_CLASSICAL = True
 
 
 @dataclass
@@ -24,23 +26,23 @@ class CrackingResult:
 
 
 class PasswordCracker:
-    DEFAULT_LENGTHS = [2, 3, 5, 8]
+    DEFAULT_LENGTHS = [2, 3, 4, 5]
     OUTPUT_DIR = Path('results')
 
     def __init__(self):
         self.OUTPUT_DIR.mkdir(exist_ok=True)
 
     def plot_complexity_analysis(self, results: List[CrackingResult]) -> None:
-        """Generate time and space complexity plots."""
         lengths = [r.password_length for r in results]
         classical_times = [r.classical_time for r in results]
         quantum_times = [r.quantum_time for r in results]
         classical_space = [r.classical_space for r in results]
         quantum_space = [r.quantum_space for r in results]
 
-        # Time Complexity Plot
         plt.figure(figsize=(10, 5))
-        plt.plot(lengths, classical_times, 'r-o', label='Classical Time (ms)')
+        if ENABLE_CLASSICAL:
+            plt.plot(lengths, classical_times, 'r-o',
+                     label='Classical Time (ms)')
         plt.plot(lengths, quantum_times, 'b-o', label='Quantum Time (ms)')
         plt.xlabel('Password Length')
         plt.ylabel('Time (ms)')
@@ -50,10 +52,10 @@ class PasswordCracker:
         plt.savefig(self.OUTPUT_DIR / 'time_complexity.png')
         plt.show()
 
-        # Space Complexity Plot
         plt.figure(figsize=(10, 5))
-        plt.plot(lengths, classical_space, 'r-o',
-                 label='Classical Space (bytes)')
+        if ENABLE_CLASSICAL:
+            plt.plot(lengths, classical_space, 'r-o',
+                     label='Classical Space (bytes)')
         plt.plot(lengths, quantum_space, 'b-o', label='Quantum Space (bytes)')
         plt.xlabel('Password Length')
         plt.ylabel('Space (bytes)')
@@ -64,46 +66,51 @@ class PasswordCracker:
         plt.show()
 
     def generate_password(self, length: int) -> str:
-        """Generate a random password of the length given."""
-        charset = string.ascii_letters + string.digits + string.punctuation
-        return ''.join(random.choice(charset) for _ in range(length))
+        return ''.join(random.choice(CHARSET) for _ in range(length))
 
     def compare_cracking_methods(self) -> List[CrackingResult]:
-        """Compare classical and quantum cracking."""
         results = []
         for length in self.DEFAULT_LENGTHS:
             try:
+                logging.info(
+                    f"Starting processing for password length: {length}")
                 password = self.generate_password(length)
 
-                # Space Complexity
-                classical_space = (
-                    len(string.ascii_letters + string.digits + string.punctuation) ** length) * length
-                quantum_space = int(np.sqrt(classical_space))
+                try:
+                    if length <= 6:  # We set a practical limit for computation
+                        classical_space = len(CHARSET) ** length * length
+                        quantum_space = int(np.sqrt(classical_space))
+                    else:
+                        classical_space = "Overflow"
+                        quantum_space = "Overflow"
+                except OverflowError as e:
+                    logging.error(f"Overflow error for length {length}: {e}")
+                    classical_space = "Overflow"
+                    quantum_space = "Overflow"
+                except Exception as e:
+                    logging.error(f"Unexpected error for length {length}: {e}")
+                    classical_space = "Error"
+                    quantum_space = "Error"
 
-                # Classical Cracking
-                _, classical_time = brute_force_crack(password)
+                if ENABLE_CLASSICAL:
+                    _, classical_time = brute_force_crack(password)
+                else:
+                    classical_time = 0
 
-                # Quantum Cracking
                 grover_instance = GroverCrack()
-                start_time = time.perf_counter()  # Start timer
-                quantum_result = grover_instance.crack_password(password)
+                start_time = time.perf_counter()
+                grover_instance.crack_password(password)
                 quantum_time = (time.perf_counter() -
-                                start_time) * 1000  # Convert to ms
+                                start_time) * 1000
 
-                # Log measured time
-                logging.info(
-                    f"Quantum time for length {length}: {quantum_time:.2f} ms")
-
-                # Append results
                 results.append(CrackingResult(
                     password=password,
                     classical_time=classical_time,
                     quantum_time=quantum_time,
                     password_length=length,
-                    classical_space=classical_space,
+                    classical_space=classical_space if ENABLE_CLASSICAL else 0,
                     quantum_space=quantum_space
                 ))
-
             except Exception as error:
                 logging.error(
                     f"Error processing length {length}: {str(error)}")
@@ -112,7 +119,6 @@ class PasswordCracker:
         return results
 
     def save_results_to_csv(self, results: List[CrackingResult], file_path: Path) -> None:
-        """Save results to a CSV."""
         with open(file_path, 'w', newline='') as csvfile:
             fieldnames = ['Password Length', 'Password', 'Classical Time (ms)',
                           'Quantum Time (ms)', 'Classical Space (bytes)', 'Quantum Space (bytes)']
@@ -122,8 +128,8 @@ class PasswordCracker:
                 writer.writerow({
                     'Password Length': result.password_length,
                     'Password': result.password,
-                    'Classical Time (ms)': f"{result.classical_time:.2f}",
-                    'Quantum Time (ms)': f"{result.quantum_time:.2f}",
+                    'Classical Time (ms)': f"{result.classical_time:.2f}" if isinstance(result.classical_time, (float, int)) else result.classical_time,
+                    'Quantum Time (ms)': f"{result.quantum_time:.2f}" if isinstance(result.quantum_time, (float, int)) else result.quantum_time,
                     'Classical Space (bytes)': result.classical_space,
                     'Quantum Space (bytes)': result.quantum_space,
                 })
